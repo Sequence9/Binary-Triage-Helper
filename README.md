@@ -1,6 +1,26 @@
-# Repo: Binary Triage Helper (PowerShell)
+# Binary Triage Helper (PowerShell)
 
-A reusable PowerShell script that automates a quick static triage pass over a directory of Windows binaries (EXE DLL MSI). It gathers hashes, generates VirusTotal URLs (hash only), extracts and filters strings, enumerates imports, captures Authenticode signatures, and assembles a simple report. Optional: ClamAV and Windows Defender scans if available.
+A fast, defensible static triage helper for Windows binary directories (EXE, DLL, MSI). It generates hashes, VirusTotal hash lookup URLs (hash-only, no automatic uploads), filtered strings, import summaries, Authenticode signature inventory, and a consolidated Markdown plus optional JSON report. Optional integrations: ClamAV (freshclam + clamscan) and Microsoft Defender (MpCmdRun) if they are present.
+
+> Objective: Rapid first-pass risk assessment ("Is there anything obviously suspicious?") before investing time in deep reverse engineering or dynamic sandboxing. Run inside a disposable VM for untrusted material.
+
+## Table of Contents
+1. [Features](#features)
+2. [When To Use](#when-to-use)
+3. [Requirements](#requirements)
+4. [Quick Start](#quick-start)
+5. [Installation](#installation)
+6. [Command Line Options](#command-line-options)
+7. [Examples](#examples)
+8. [Custom Pattern File](#custom-pattern-file)
+9. [JSON Output](#json-output)
+10. [Safety Notes](#safety-notes)
+11. [License](#license)
+12. [Script: Analyze-BinarySet.ps1](#script-analyze-binarysetps1)
+13. [Roadmap Ideas](#roadmap-ideas)
+14. [Contributing](#contributing)
+15. [Example Pattern Extensions File](#example-pattern-extensions-file-patternstxt)
+16. [Disclaimer](#disclaimer)
 
 ## Features
 
@@ -16,7 +36,7 @@ Plain language summary of what the script does:
 8. Generates a Markdown report (Report.md) summarizing findings with quick tables.
 9. Supports extensibility: custom pattern file, JSON output, silent mode, skipping steps.
 
-## When to use
+## When To Use
 
 Early stage triage of a folder you just unpacked or received. Not a replacement for a full sandbox or reverse engineering. Run inside a disposable VM for untrusted samples.
 
@@ -29,21 +49,75 @@ Early stage triage of a folder you just unpacked or received. Not a replacement 
   - ClamAV (freshclam.exe clamscan.exe) for extra signature scanning
   - Windows Defender (MpCmdRun.exe) for secondary AV scan
 
-## Quick start
+## Quick Start
 
 ```powershell
-# Run from the repo root
-.\Analyze-BinarySet.ps1 -TargetFolder "C:\Path\To\Folder" -OutDir .\Analysis
+# Run from the repo root (basic full run)
+./Analyze-BinarySet.ps1 -TargetFolder "C:/Path/To/Folder" -OutDir ./Analysis
+# Then open ./Analysis/Report.md
 ```
 
-View the generated Analysis\Report.md in a Markdown viewer.
-
-Minimal no extra scans:
+Minimal (skip all AV & JSON):
 ```powershell
-.\\Analyze-BinarySet.ps1 -TargetFolder "C:\Path\To\Folder" -SkipClamAVUpdate -NoDefenderScan -NoClamScan
+./Analyze-BinarySet.ps1 -TargetFolder "C:/Path/To/Folder" -SkipClamAVUpdate -NoClamScan -NoDefenderScan
 ```
 
-## Custom pattern file
+Generate JSON too:
+```powershell
+./Analyze-BinarySet.ps1 -TargetFolder "C:/Samples" -Json
+```
+
+## Installation
+
+```bash
+git clone https://github.com/Sequence9/binary-triage-helper.git
+cd binary-triage-helper
+```
+Optional tools (auto-detected if on PATH):
+- **Sysinternals**: place `strings64.exe` (or Sysinternals Suite) somewhere on PATH (e.g. `C:/Tools/Sysinternals`).
+- **dumpbin.exe**: via Visual Studio (Developer Command Prompt) *or* Sysinternals `sigcheck.exe`.
+- **ClamAV**: ensure `freshclam.exe` / `clamscan.exe` resolve (add install dir to PATH if needed).
+- **Microsoft Defender**: built-in (`MpCmdRun.exe`).
+
+> Run inside a disposable VM / snapshot when handling untrusted content.
+
+## Command Line Options
+
+| Parameter | Purpose | Default |
+|-----------|---------|---------|
+| `-TargetFolder` | Folder to analyze recursively | **required** |
+| `-OutDir` | Output directory for artifacts | `./Analysis` |
+| `-SkipClamAVUpdate` | Do not run `freshclam` first | off |
+| `-NoClamScan` | Skip ClamAV content scan | off |
+| `-NoDefenderScan` | Skip Microsoft Defender scan | off |
+| `-PatternFile` | Extra regex patterns file (one per line) | none |
+| `-Json` | Emit `report.json` | off |
+| `-MinStringLength` | Minimum string length extracted | 6 |
+| `-Quiet` | Reduce console output | off |
+
+## Examples
+
+Full run (all features detected):
+```powershell
+./Analyze-BinarySet.ps1 -TargetFolder "C:/Incoming/Unpacked" -OutDir ./Analysis
+```
+
+Add custom patterns:
+```powershell
+./Analyze-BinarySet.ps1 -TargetFolder "C:/Samples" -PatternFile ./patterns.txt
+```
+
+Fast triage (hashes + strings only):
+```powershell
+./Analyze-BinarySet.ps1 -TargetFolder "C:/Samples" -SkipClamAVUpdate -NoClamScan -NoDefenderScan
+```
+
+Quiet JSON run:
+```powershell
+./Analyze-BinarySet.ps1 -TargetFolder "C:/Samples" -Json -Quiet
+```
+
+## Custom Pattern File
 
 Create a UTF8 text file patterns.txt with one regex per line. Then:
 ```powershell
@@ -51,17 +125,38 @@ Create a UTF8 text file patterns.txt with one regex per line. Then:
 ```
 Patterns in the file merge with the built in list.
 
-## JSON output
+## JSON Output
 
 Add -Json to also produce report.json with structured data.
 
-## Safety notes
+## Safety Notes
 
 - Never trust a single clean result. This script is an aid not a verdict.
 - For potentially malicious code always run inside an isolated VM snapshot.
 - VirusTotal lookups are hash only here. If a hash is unknown you decide whether to upload the file manually. Respect licensing and confidentiality.
 - If you intend to share the generated artifacts scrub paths or personal identifiers.
 
+## License
+
+MIT License (c) 2025 Sequence9
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ## Script: Analyze-BinarySet.ps1
 
@@ -261,7 +356,7 @@ if($Json){
 Write-Info "Done. Open $reportFile"
 ```
 
-## Roadmap ideas
+## Roadmap Ideas
 
 - Add optional YARA rule scan support.
 - Add entropy calculation for each section (packer hinting).
@@ -276,7 +371,7 @@ Use at your own risk. Script is for educational and defensive triage purposes. D
 
 Open issues or pull requests with improvements: new patterns, performance tweaks, optional modules. Keep additions dependency light.
 
-## Example pattern extensions file (patterns.txt)
+## Example Pattern Extensions File (patterns.txt)
 ```
 # Add extra scanning patterns (regex)
 \bwebhook\b
