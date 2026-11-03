@@ -183,7 +183,12 @@ function Write-Warn($m){ Write-Warning $m }
 
 # Normalize paths
 $TargetFolder = (Resolve-Path $TargetFolder).Path
-$OutDir = (Resolve-Path $OutDir -ErrorAction SilentlyContinue) ?? (New-Item -ItemType Directory -Path $OutDir -Force | Select -ExpandProperty FullName)
+$resolvedOutDir = Resolve-Path $OutDir -ErrorAction SilentlyContinue
+if ($resolvedOutDir) {
+    $OutDir = $resolvedOutDir.Path
+} else {
+    $OutDir = (New-Item -ItemType Directory -Path $OutDir -Force).FullName
+}
 Write-Info "Target: $TargetFolder"
 Write-Info "Output: $OutDir"
 
@@ -246,7 +251,8 @@ $stringsToolCandidates = @(
  (Get-Command strings.exe -ErrorAction SilentlyContinue | Select -ExpandProperty Source -ErrorAction SilentlyContinue)
 ) | Where-Object { $_ -and (Test-Path $_) }
 $stringsTool = $stringsToolCandidates | Select -First 1
-Write-Info ("Strings tool: " + ($stringsTool ?? "Pure PowerShell fallback"))
+$stringsToolDisplay = if ($stringsTool) { $stringsTool } else { "Pure PowerShell fallback" }
+Write-Info ("Strings tool: " + $stringsToolDisplay)
 
 $stringsDir = Join-Path $OutDir "strings"; New-Item -ItemType Directory -Path $stringsDir -Force | Out-Null
 $filtered = @()
@@ -312,7 +318,7 @@ $report += ""; $report += "## Interesting Strings";
 if($filtered){ $report += "| File | Match | Line |"; $report += "|------|-------|------|"; $filtered | Select-Object -First 200 | ForEach-Object { $report += "| $($_.File) | $($_.Match -replace '\|',' ') | $($_.Line -replace '\|',' ') |" }; if($filtered.Count -gt 200){ $report += "_Truncated to first 200 of $($filtered.Count)._" } } else { $report += "None" }
 $report += ""; $report += "## Import Families"; $report += "| File | Families |"; $report += "|------|----------|"; foreach($i in $importSummaries){ $report += "| $($i.File) | $($i.Families) |" }
 $report += ""; $report += "## Scans"; if(Test-Path $clamLog){ $report += "ClamAV log: $clamLog" } else { $report += "ClamAV: skipped or not available" }; if(Test-Path $defLog){ $report += "Defender log: $defLog" } else { $report += "Defender: skipped or not available" }
-$report += ""; $report += "## Tool Detection"; $report += "Strings Tool: " + ($stringsTool ?? "Pure PowerShell"); $report += "dumpbin present: " + [bool](Get-Command dumpbin.exe -ErrorAction SilentlyContinue)
+$report += ""; $report += "## Tool Detection"; $report += "Strings Tool: " + $stringsToolDisplay; $report += "dumpbin present: " + [bool](Get-Command dumpbin.exe -ErrorAction SilentlyContinue)
 
 $reportFile = Join-Path $OutDir "Report.md"; $report -join "`n" | Set-Content -Encoding UTF8 $reportFile
 
