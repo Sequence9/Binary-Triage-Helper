@@ -45,9 +45,17 @@ function Sanitize-MarkdownCell {
     return $InputString -replace '\|', '\|' -replace '`', '\`'
 }
 
+# Validate inputs before resolving paths so failures are actionable.
+if ($MinStringLength -lt 1) {
+    throw "MinStringLength must be at least 1."
+}
+if (-not (Test-Path -LiteralPath $TargetFolder -PathType Container)) {
+    throw "Target folder does not exist or is not a directory: $TargetFolder"
+}
+
 # Normalize paths
-$TargetFolder = (Resolve-Path $TargetFolder).Path
-$resolvedOutDir = Resolve-Path $OutDir -ErrorAction SilentlyContinue
+$TargetFolder = (Resolve-Path -LiteralPath $TargetFolder).Path
+$resolvedOutDir = Resolve-Path -LiteralPath $OutDir -ErrorAction SilentlyContinue
 if ($resolvedOutDir) {
     $OutDir = $resolvedOutDir.Path
 } else {
@@ -56,7 +64,6 @@ if ($resolvedOutDir) {
 Write-Info "Target: $TargetFolder"
 Write-Info "Output: $OutDir"
 
-if(-not (Test-Path $TargetFolder)){ throw "Target folder does not exist." }
 
 # Collect binaries
 $binList = Get-ChildItem -Path $TargetFolder -Recurse -Include *.exe,*.dll,*.msi -ErrorAction SilentlyContinue
